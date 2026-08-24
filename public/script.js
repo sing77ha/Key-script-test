@@ -7,41 +7,37 @@ function showResult(message) {
 }
 
 claimButton.addEventListener("click", async () => {
-
     claimButton.disabled = true;
-    claimButton.textContent = "⏳ Checking...";
+    claimButton.textContent = "⏳ Creating...";
 
-    showResult("กำลังเตรียมระบบรับ Key...");
+    showResult("กำลังสร้าง Key...");
 
     try {
+        const response = await fetch("/api/create-key", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "x-admin-secret": "YOUR_ADMIN_SECRET"
+            }
+        });
 
-        /*
-         * ขั้นตอนนี้เป็นหน้าเตรียมระบบ
-         *
-         * เราจะเชื่อมกับ /api/create-key
-         * หลังจากตั้งค่า Supabase เสร็จ
-         *
-         * ไม่สร้าง Key ฝั่ง Browser
-         * เพื่อไม่ให้ผู้ใช้แก้ JavaScript
-         * แล้วสร้าง Key เองได้
-         */
+        const data = await response.json();
 
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        if (!response.ok || !data.success) {
+            throw new Error(data.message || "Failed to create key");
+        }
 
-        showResult(
-            "ระบบพร้อมแล้ว แต่ยังต้องตั้งค่า Key Database ก่อน"
-        );
+        showResult(`✅ Key ของคุณคือ: ${data.key}`);
 
     } catch (error) {
+        console.error(error);
 
         showResult(
-            "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
+            "❌ ไม่สามารถสร้าง Key ได้ กรุณาลองใหม่"
         );
 
     } finally {
-
         claimButton.disabled = false;
         claimButton.textContent = "🔑 Claim Key";
-
     }
 });
