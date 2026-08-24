@@ -1,96 +1,93 @@
-export default async function handler(req, res) {
-    if (req.method !== "POST") {
-        return res.status(405).json({
-            error: "Method not allowed"
-        });
+const { createClient } = require("@supabase/supabase-js");
+
+const supabaseUrl = process.env.SUPABASE_URL;
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const adminSecret = process.env.ADMIN_SECRET;
+
+function generateKey() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let result = "SKY-";
+
+  for (let i = 0; i < 16; i++) {
+    if (i === 4 || i === 9 || i === 14) {
+      result += "-";
     }
 
-    // ตรวจ Admin Secret
-    if (
-        req.headers.authorization !==
-        `Bearer ${process.env.ADMIN_SECRET}`
-    ) {
-        return res.status(401).json({
-            error: "Unauthorized"
-        });
-    }
+    result += chars[Math.floor(Math.random() * chars.length)];
+  }
 
-    try {
-        const body = req.body || {};
-
-        const days = Math.max(
-            1,
-            Math.min(Number(body.days) || 1, 365)
-        );
-
-        const chars =
-            "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-
-        function randomPart() {
-            let result = "";
-
-            for (let i = 0; i < 5; i++) {
-                result += chars[
-                    Math.floor(
-                        Math.random() * chars.length
-                    )
-                ];
-            }
-
-            return result;
-        }
-
-        const key =
-            `ZH-${randomPart()}-${randomPart()}-${randomPart()}`;
-
-        const expiresAt =
-            new Date(
-                Date.now() + days * 86400000
-            ).toISOString();
-
-        const response = await fetch(
-            `${process.env.SUPABASE_URL}/rest/v1/keys`,
-            {
-                method: "POST",
-
-                headers: {
-                    apikey:
-                        process.env.SUPABASE_SERVICE_ROLE_KEY,
-
-                    Authorization:
-                        `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-
-                    "Content-Type":
-                        "application/json",
-
-                    Prefer:
-                        "return=representation"
-                },
-
-                body: JSON.stringify({
-                    key: key,
-                    expires_at: expiresAt,
-                    active: true
-                })
-            }
-        );
-
-        if (!response.ok) {
-            return res.status(500).json({
-                error: "Could not create key"
-            });
-        }
-
-        return res.status(200).json({
-            success: true,
-            key: key,
-            expiresAt: expiresAt
-        });
-
-    } catch (error) {
-
-        return res.status(500).json({
-            error: "Server error"
-        });
-    }
+  return result;
 }
+
+module.exports = async (req, res) => {
+  if (req.method !== "POST") {
+    return res.status(405).json({
+      success: false,
+      message: "Method Not Allowed"
+    });
+  }
+
+  try {
+    if (!supabaseUrl || !serviceRoleKey || !adminSecret) {
+      return res.status(500).json({
+        success: false,
+        message: "Server environment is not configured"
+      });
+    }
+
+    const providedSecret = req.headers["x-admin-secret"];
+
+    if (!providedSecret || providedSecret !== adminSecret) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized"
+      });
+    }
+
+    const supabase = createClient(
+      supabaseUrl,
+      serviceRoleKey
+    );
+
+    let newKey;
+    let exists = true;
+
+    while (exists) {
+      newKey = generateKey();
+
+      const { data, error } = await supabase
+        .from("keys")
+        .select("key")
+        .eq("key", newKey)
+        .limit(1);
+
+      if (error) throw error;
+
+      exists = data && data.length > 0;
+    }
+
+    const { data, error } = await supabase
+      .from("keys")
+      .insert({
+        key: newKey,
+        status: "unused"
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return res.status(200).json({
+      success: true,
+      key: data.key
+    });
+
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to create key"
+    });
+  }
+};
