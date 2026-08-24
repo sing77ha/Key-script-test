@@ -1,13 +1,23 @@
 const claimButton = document.getElementById("claimButton");
 const result = document.getElementById("result");
 
+function showResult(message) {
+    result.textContent = message;
+    result.classList.remove("hidden");
+}
+
 claimButton.addEventListener("click", async () => {
     claimButton.disabled = true;
-    result.textContent = "กำลังสร้าง Key...";
+    claimButton.textContent = "⏳ Creating...";
+
+    showResult("กำลังสร้าง Key...");
 
     try {
         const response = await fetch("/api/create-key", {
-            method: "POST"
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            }
         });
 
         const data = await response.json();
@@ -16,12 +26,13 @@ claimButton.addEventListener("click", async () => {
             throw new Error(data.message || "สร้าง Key ไม่สำเร็จ");
         }
 
-        result.textContent = `✅ Key: ${data.key}`;
+        showResult(`✅ Key ของคุณ: ${data.key}`);
 
     } catch (error) {
         console.error(error);
-        result.textContent = "❌ สร้าง Key ไม่สำเร็จ";
+        showResult("❌ ไม่สามารถสร้าง Key ได้ กรุณาลองใหม่");
+    } finally {
+        claimButton.disabled = false;
+        claimButton.textContent = "🔑 Claim Key";
     }
-
-    claimButton.disabled = false;
 });
