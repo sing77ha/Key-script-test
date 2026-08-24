@@ -44,10 +44,10 @@ module.exports = async (req, res) => {
         const { data, error } = await supabase
             .from("keys")
             .insert({
-                keys: newKey,
+                key: newKey,
                 active: true
             })
-            .select("id, active, keys, expires_at, roblox_user_id, created_at")
+            .select("id, active, key, expires_at, roblox_user_id, created_at")
             .single();
 
         if (error) {
@@ -62,7 +62,7 @@ module.exports = async (req, res) => {
 
         return res.status(200).json({
             success: true,
-            key: data.keys,
+            key: data.key,
             active: data.active,
             expires_at: data.expires_at,
             roblox_user_id: data.roblox_user_id,
