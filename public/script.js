@@ -14,23 +14,28 @@ claimButton.addEventListener("click", async () => {
 
     try {
         const response = await fetch("/api/create-key", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            }
+            method: "POST"
         });
 
         const data = await response.json();
 
         if (!response.ok || !data.success) {
-            throw new Error(data.message || "สร้าง Key ไม่สำเร็จ");
+            throw new Error(
+                data.message || "สร้าง Key ไม่สำเร็จ"
+            );
         }
 
-        showResult(`✅ Key ของคุณ: ${data.key}`);
+        showResult(
+            `✅ Key ของคุณ: ${data.key}`
+        );
 
     } catch (error) {
         console.error(error);
-        showResult("❌ ไม่สามารถสร้าง Key ได้ กรุณาลองใหม่");
+
+        showResult(
+            `❌ ${error.message}`
+        );
+
     } finally {
         claimButton.disabled = false;
         claimButton.textContent = "🔑 Claim Key";
