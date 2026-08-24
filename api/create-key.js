@@ -78,3 +78,59 @@ module.exports = async (req, res) => {
         });
     }
 };
+const verifyButton = document.getElementById("verifyButton");
+const verifyKey = document.getElementById("verifyKey");
+const robloxUserId = document.getElementById("robloxUserId");
+const verifyResult = document.getElementById("verifyResult");
+
+verifyButton.addEventListener("click", async () => {
+    const key = verifyKey.value.trim();
+    const userId = robloxUserId.value.trim();
+
+    if (!key || !userId) {
+        verifyResult.textContent = "❌ กรุณากรอก Key และ Roblox User ID";
+        verifyResult.classList.remove("hidden");
+        return;
+    }
+
+    verifyButton.disabled = true;
+    verifyButton.textContent = "⏳ Verifying...";
+
+    try {
+        const response = await fetch("/api/verify", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                key: key,
+                robloxUserId: userId
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+            throw new Error(
+                data.message || "Verify ไม่สำเร็จ"
+            );
+        }
+
+        verifyResult.textContent =
+            "✅ Verify สำเร็จ! Key นี้ถูกผูกกับ Roblox User ID แล้ว";
+
+        verifyResult.classList.remove("hidden");
+
+    } catch (error) {
+        console.error(error);
+
+        verifyResult.textContent =
+            `❌ ${error.message}`;
+
+        verifyResult.classList.remove("hidden");
+
+    } finally {
+        verifyButton.disabled = false;
+        verifyButton.textContent = "✅ Verify Key";
+    }
+});
