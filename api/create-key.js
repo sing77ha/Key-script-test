@@ -5,23 +5,20 @@ const supabase = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-const cooldown = new Map();
-const COOLDOWN_MS = 60 * 1000;
-
 function generateKey() {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
-    let key = "SKY-";
+    const part = (length) => {
+        let result = "";
 
-    for (let i = 0; i < 16; i++) {
-        if (i === 4 || i === 9 || i === 14) {
-            key += "-";
+        for (let i = 0; i < length; i++) {
+            result += chars[Math.floor(Math.random() * chars.length)];
         }
 
-        key += chars[Math.floor(Math.random() * chars.length)];
-    }
+        return result;
+    };
 
-    return key;
+    return `SKY-${part(5)}-${part(5)}-${part(5)}`;
 }
 
 module.exports = async (req, res) => {
@@ -33,54 +30,61 @@ module.exports = async (req, res) => {
     }
 
     try {
-        const ip =
-            req.headers["x-forwarded-for"]?.split(",")[0] ||
-            req.socket?.remoteAddress ||
-            "unknown";
+        // สร้าง Key
+        let newKey;
+        let exists = true;
 
-        const now = Date.now();
-        const lastClaim = cooldown.get(ip);
+        // ป้องกัน Key ซ้ำ
+        while (exists) {
+            newKey = generateKey();
 
-        if (lastClaim && now - lastClaim < COOLDOWN_MS) {
-            const remaining = Math.ceil(
-                (COOLDOWN_MS - (now - lastClaim)) / 1000
-            );
+            const { data, error } = await supabase
+                .from("keys")
+                .select("id")
+                .eq("keys", newKey)
+                .limit(1);
 
-            return res.status(429).json({
-                success: false,
-                message: `กรุณารอ ${remaining} วินาที`
-            });
+            if (error) {
+                console.error("Check key error:", error);
+
+                return res.status(500).json({
+                    success: false,
+                    message: "Database error while checking key"
+                });
+            }
+
+            exists = data && data.length > 0;
         }
 
-        const key = generateKey();
-
+        // บันทึก Key
         const { data, error } = await supabase
             .from("keys")
             .insert({
-                key: key,
-                status: "unused"
+                keys: newKey,
+                active: true
             })
-            .select("key")
+            .select("id, keys, active, expires_at, roblox_user_id, created_at")
             .single();
 
         if (error) {
-            console.error(error);
+            console.error("Insert key error:", error);
 
             return res.status(500).json({
                 success: false,
-                message: "Database error"
+                message: "Failed to save key"
             });
         }
 
-        cooldown.set(ip, now);
-
         return res.status(200).json({
             success: true,
-            key: data.key
+            key: data.keys,
+            active: data.active,
+            expires_at: data.expires_at,
+            created_at: data.created_at
         });
 
     } catch (error) {
-        console.error(error);
+        console.error("Create key error:", error);
 
         return res.status(500).json({
             success: false,
