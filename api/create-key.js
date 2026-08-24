@@ -1,5 +1,8 @@
 const { createClient } = require("@supabase/supabase-js");
 
+const supabaseUrl = process.env.SUPABASE_URL;
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
 module.exports = async (req, res) => {
     if (req.method !== "POST") {
         return res.status(405).json({
@@ -8,47 +11,50 @@ module.exports = async (req, res) => {
         });
     }
 
+    if (!supabaseUrl || !serviceRoleKey) {
+        return res.status(500).json({
+            success: false,
+            message: "Supabase environment variables are missing"
+        });
+    }
+
     try {
-        const url = process.env.SUPABASE_URL;
-        const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        const supabase = createClient(
+            supabaseUrl,
+            serviceRoleKey
+        );
 
-        if (!url) {
-            return res.status(500).json({
-                success: false,
-                step: "environment",
-                message: "SUPABASE_URL is missing"
-            });
+        const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+        function randomPart(length) {
+            let result = "";
+
+            for (let i = 0; i < length; i++) {
+                result += chars[
+                    Math.floor(Math.random() * chars.length)
+                ];
+            }
+
+            return result;
         }
 
-        if (!serviceKey) {
-            return res.status(500).json({
-                success: false,
-                step: "environment",
-                message: "SUPABASE_SERVICE_ROLE_KEY is missing"
-            });
-        }
-
-        const supabase = createClient(url, serviceKey);
-
-        const testKey =
-            "TEST-" +
-            Math.random().toString(36).substring(2, 10).toUpperCase();
+        const newKey =
+            `SKY-${randomPart(5)}-${randomPart(5)}-${randomPart(5)}`;
 
         const { data, error } = await supabase
             .from("keys")
             .insert({
-                keys: testKey,
+                keys: newKey,
                 active: true
             })
-            .select("id, keys, active")
+            .select("id, active, keys, expires_at, roblox_user_id, created_at")
             .single();
 
         if (error) {
-            console.error("SUPABASE ERROR:", error);
+            console.error("Supabase error:", error);
 
             return res.status(500).json({
                 success: false,
-                step: "supabase",
                 message: error.message,
                 code: error.code
             });
@@ -56,16 +62,18 @@ module.exports = async (req, res) => {
 
         return res.status(200).json({
             success: true,
-            step: "insert",
-            data
+            key: data.keys,
+            active: data.active,
+            expires_at: data.expires_at,
+            roblox_user_id: data.roblox_user_id,
+            created_at: data.created_at
         });
 
     } catch (error) {
-        console.error("FUNCTION ERROR:", error);
+        console.error("Function error:", error);
 
         return res.status(500).json({
             success: false,
-            step: "function",
             message: error.message
         });
     }
